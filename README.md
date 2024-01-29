@@ -1,5 +1,7 @@
 # Stock Sentinel 2.0
 
+This is a continuation of Stock Sentinel V1. You can check that out here: [Stock Sentinel V1](https://github.com/hamannjames/stock-sentinel)
+
 ## Devlog
 
 - Building Scraper for EFD

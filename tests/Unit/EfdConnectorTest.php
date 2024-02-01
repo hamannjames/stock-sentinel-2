@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Http\Integrations\EfdConnector;
 use Carbon\Carbon;
+use EfdConnectorSingleton;
 use GuzzleHttp\Client;
 use PHPUnit\Framework\TestCase;
 
@@ -11,12 +12,9 @@ use function PHPUnit\Framework\assertEquals;
 
 class EfdConnectorTest extends TestCase
 {
-    /**
-     * A basic unit test example.
-     */
     public function test_efdConnector_has_correct_urls_on_construct(): void
     {
-        $con = new EfdConnector();
+        $con = EfdConnector::get();
         $conReflected = new \ReflectionObject($con);
 
         $base = $conReflected->getProperty('baseUri');
@@ -33,7 +31,7 @@ class EfdConnectorTest extends TestCase
     
      public function test_efd_connector_performs_handshake(): void
     {
-        $con = new EfdConnector();
+        $con = EfdConnectorSingleton::getInstance();
         $conReflected = new \ReflectionObject($con);
         
         $handshake = $conReflected->getMethod('makeInitialHandshake');
@@ -52,7 +50,7 @@ class EfdConnectorTest extends TestCase
 
      public function test_efd_connector_performs_agreement() : void
     {
-        $con = new EfdConnector();
+        $con = EfdConnectorSingleton::getInstance();
         $conReflected = new \ReflectionObject($con);
         
         $handshake = $conReflected->getMethod('makeInitialHandshake');
@@ -78,7 +76,7 @@ class EfdConnectorTest extends TestCase
 
     public function test_efd_connector_initializes() : void
     {
-        $con = new EfdConnector();
+        $con = EfdConnectorSingleton::getInstance();
         $conReflected = new \ReflectionObject($con);
 
         $csrfProp = $conReflected->getProperty('csrfMiddlewareToken');
@@ -91,7 +89,7 @@ class EfdConnectorTest extends TestCase
 
     public function test_efd_connector_fetches_transactions() : void
     {
-        $con = new EfdConnector();
+        $con = EfdConnectorSingleton::getInstance();
         $con->init();
 
         $start = Carbon::parse('12/1/2023');

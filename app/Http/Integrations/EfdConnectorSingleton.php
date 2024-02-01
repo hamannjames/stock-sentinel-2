@@ -1,5 +1,7 @@
 <?php
 
+namespace App\Http\Integrations;
+
 use App\Http\Integrations\EfdConnector;
 
 /*

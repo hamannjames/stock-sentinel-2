@@ -3,8 +3,9 @@
 namespace Tests\Unit;
 
 use App\Http\Integrations\EfdConnector;
+use App\Http\Integrations\EfdConnectorSingleton;
 use Carbon\Carbon;
-use EfdConnectorSingleton;
+use Generator;
 use GuzzleHttp\Client;
 use PHPUnit\Framework\TestCase;
 
@@ -14,7 +15,7 @@ class EfdConnectorTest extends TestCase
 {
     public function test_efdConnector_has_correct_urls_on_construct(): void
     {
-        $con = EfdConnector::get();
+        $con = EfdConnectorSingleton::getInstance();
         $conReflected = new \ReflectionObject($con);
 
         $base = $conReflected->getProperty('baseUri');
@@ -37,15 +38,21 @@ class EfdConnectorTest extends TestCase
         $handshake = $conReflected->getMethod('makeInitialHandshake');
         $cookies = $conReflected->getProperty('jar');
         $getCsrf = $conReflected->getMethod('pullCsrfTokenFromHandhake');
+        $csrfToken = $conReflected->getProperty('csrfMiddlewareToken');
+        $setCsrfToken = $conReflected->getMethod('setCsrfMiddlewareToken');
         $handshake->setAccessible(true);
         $cookies->setAccessible(true);
         $getCsrf->setAccessible(true);
+        $csrfToken->setAccessible(true);
+        $setCsrfToken->setAccessible(true);
 
         $response = $handshake->invoke($con, $con->getClient(), $cookies->getValue($con));
         $token = $getCsrf->invoke($con, $response);
+        $setCsrfToken->invoke($con, $token);
 
         $this->assertTrue($response->getStatusCode() === 200);
-        $this->assertNotEmpty($getCsrf->invoke($con, $response));
+        $this->assertNotEmpty($token);
+        $this->assertEquals($token, $csrfToken->getValue($con));
     }
 
      public function test_efd_connector_performs_agreement() : void
@@ -53,52 +60,54 @@ class EfdConnectorTest extends TestCase
         $con = EfdConnectorSingleton::getInstance();
         $conReflected = new \ReflectionObject($con);
         
-        $handshake = $conReflected->getMethod('makeInitialHandshake');
         $cookies = $conReflected->getProperty('jar');
-        $getCsrf = $conReflected->getMethod('pullCsrfTokenFromHandhake');
         $agreement = $conReflected->getMethod('makeAgreementRequest');
         $storedToken = $conReflected->getProperty('csrfMiddlewareToken');
+        $getCsrf = $conReflected->getMethod('pullCsrfTokenFromHandhake');
+        $setCsrf = $conReflected->getMethod('setCsrfMiddlewareToken');
         $storedToken->setAccessible(true);
         $agreement->setAccessible(true);
-        $handshake->setAccessible(true);
         $cookies->setAccessible(true);
         $getCsrf->setAccessible(true);
+        $setCsrf->setAccessible(true);
 
-        $response = $handshake->invoke($con, $con->getClient(), $cookies->getValue($con));
-        $token = $getCsrf->invoke($con, $response);
+        $originalToken = $storedToken->getValue($con);
 
-        $agreementResponse = $agreement->invoke($con, $con->getClient(), $cookies->getValue($con), $token);
-        $token = $getCsrf->invoke($con, $agreementResponse);
+        $this->assertNotEmpty($originalToken);
+
+        $agreementResponse = $agreement->invoke($con, $con->getClient(), $cookies->getValue($con), $originalToken);
+        $newToken = $getCsrf->invoke($con, $agreementResponse);
+        $setCsrf->invoke($con, $newToken);
 
         $this->assertEquals($agreementResponse->getStatusCode(), 200);
-        $this->assertNotEmpty($token);
-    }
-
-    public function test_efd_connector_initializes() : void
-    {
-        $con = EfdConnectorSingleton::getInstance();
-        $conReflected = new \ReflectionObject($con);
-
-        $csrfProp = $conReflected->getProperty('csrfMiddlewareToken');
-        $csrfProp->setAccessible(true);
-
-        $con->init();
-
-        $this->assertNotEmpty($csrfProp->getValue($con));
+        $this->assertNotEmpty($newToken);
+        $this->assertNotEquals($originalToken, $storedToken->getValue($con));
     }
 
     public function test_efd_connector_fetches_transactions() : void
     {
         $con = EfdConnectorSingleton::getInstance();
-        $con->init();
+        $conReflected = new \ReflectionObject($con);
+
+        $offset = $conReflected->getProperty('initialOffset');
+        $length = $conReflected->getProperty('paginationLength');
+        $makeTransactionsCall = $conReflected->getMethod('makeTransactionsCall');
+        $storedToken = $conReflected->getProperty('csrfMiddlewareToken');
+        $offset->setAccessible(true);
+        $length->setAccessible(true);
+        $makeTransactionsCall->setAccessible(true);
+        $storedToken->setAccessible(true);
 
         $start = Carbon::parse('12/1/2023');
         $end = Carbon::parse('12/31/2023');
+        $offset = $offset->getValue($con);
+        $length = $length->getValue($con);
+        $token = $storedToken->getValue($con);
 
-        $transactions = $con->fetchTransactions(Carbon::parse('12/1/2023'), Carbon::parse('12/31/2023'));
+        $transactions = $makeTransactionsCall->invoke($con, Carbon::parse('12/1/2023'), Carbon::parse('12/31/2023'), $offset, $length, $token);
+        
+        $total = $transactions->recordsTotal;
 
-        foreach($transactions as $t) {
-            $this->assertCount(14, $t);
-        }
+        $this->assertEquals($total, 38);
     }
 }

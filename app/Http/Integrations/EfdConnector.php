@@ -21,6 +21,8 @@ class EfdConnector {
     private CookieJar $jar;
     private CookieJar $ptrJar;
     private String $dateFormat = 'm/d/Y h:i:s';
+    private int $initialOffset = 0;
+    private int $paginationLength = 100;
 
     public function __construct()
     {
@@ -41,7 +43,9 @@ class EfdConnector {
         $agreement = $this->makeAgreementRequest($this->client, $this->jar, $csrf);
         $ptrAgreement = $this->makeAgreementRequest($this->ptrClient, $this->ptrJar, $ptrCsrf);
 
-        $this->csrfMiddlewareToken = $this->pullCsrfTokenFromHandhake($agreement);
+        $csrfToken = $this->pullCsrfTokenFromHandhake($agreement);
+
+        $this->setCsrfMiddlewareToken($csrfToken);
 
         /*
         libxml_use_internal_errors(true);
@@ -93,8 +97,6 @@ class EfdConnector {
             throw new Exception('Start cannot be greater than end');
         }
 
-        $offset = 0;
-        $length = 100;
         $recordsRetrieved = 0;
         $recordsTotal = 0;
 
@@ -102,6 +104,8 @@ class EfdConnector {
             'form_params' => [
                 'filer_type' => 1,
                 'report_type' => 1,
+                'submitted_start_date' => $start->format($this->dateFormat),
+                'submitted_end_date' => $end->format($this->dateFormat),
                 'csrfmiddlewaretoken' => $this->csrfMiddlewareToken
             ],
             'headers' => [
@@ -112,7 +116,7 @@ class EfdConnector {
 
         $csrfToken = $this->jar->getCookieByName('csrftoken')->getValue();
 
-        $transactions = $this->makeTransactionsCall($start, $end, $offset, $length, $csrfToken);
+        $transactions = $this->makeTransactionsCall($start, $end, $this->initialOffset, $this->paginationLength, $csrfToken);
 
         $recordsTotal = $transactions->recordsTotal;
 
@@ -267,5 +271,10 @@ class EfdConnector {
     public function getPtrClient()
     {
         return $this->ptrClient;
+    }
+
+    private function setCsrfMiddlewareToken(String $token) : void
+    {
+        $this->csrfMiddlewareToken = $token;
     }
 }
